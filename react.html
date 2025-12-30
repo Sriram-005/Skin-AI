@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Restaurant Billing</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial;
+            background: #f2f2f2;
+        }
+
+        header {
+            background: #333;
+            color: white;
+            padding: 10px;
+        }
+
+        .container {
+            display: flex;
+            height: calc(100vh - 40px);
+        }
+
+        /* TABLES */
+        .tables {
+            width: 250px;
+            background: #fff;
+            border-right: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        .tables input {
+            width: 90%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .table {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            background: #fafafa;
+        }
+
+        /* MENU */
+        .menu {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .menu input {
+            width: 98%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        /* ONLY MENU ITEMS SCROLL */
+        .menu-items {
+            overflow-y: auto;
+            flex: 1;
+            padding-right: 5px;
+        }
+
+        .category-title {
+            background: #2563eb;
+            color: white;
+            padding: 6px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .menu-item {
+            border: 1px solid #ccc;
+            background: #fff;
+            padding: 10px;
+            margin-bottom: 8px;
+            cursor: grab;
+        }
+
+        /* MODAL */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-box {
+            background: white;
+            width: 420px;
+            padding: 10px;
+        }
+
+        .modal-header {
+            background: #2563eb;
+            color: white;
+            padding: 8px;
+        }
+
+        .order {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 6px 0;
+        }
+
+        button {
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>Restaurant Billing App</header>
+
+<div class="container">
+
+    <!-- TABLES -->
+    <div class="tables">
+        <h3>Tables</h3>
+        <input type="text" id="tableSearch" placeholder="Search table">
+        <div id="tableList"></div>
+    </div>
+
+    <!-- MENU -->
+    <div class="menu">
+        <h3>Menu</h3>
+        <input type="text" id="menuSearch" placeholder="Search item or category">
+        <div class="menu-items" id="menuList"></div>
+    </div>
+
+</div>
+
+<!-- MODAL -->
+<div class="modal" id="modal">
+    <div class="modal-box">
+        <div class="modal-header" id="modalTitle"></div>
+        <div id="orders"></div>
+        <p><b id="total"></b></p>
+        <button onclick="closeModal()">Close</button>
+        <button onclick="proceedBill()">Proceed</button>
+    </div>
+</div>
+
+<script>
+    var menu = [
+        { name: "Chicken 65", price: 100, category: "Starters" },
+        { name: "Chicken Manchurian", price: 110, category: "Starters" },
+        { name: "Prawn 65", price: 120, category: "Starters" },
+        { name: "Chicken Biryani", price: 150, category: "Main Course" },
+        { name: "Mutton Biryani", price: 250, category: "Main Course" },
+        { name: "Veg Meals", price: 120, category: "Main Course" },
+        { name: "Chicken Soup", price: 50, category: "Soups" },
+        { name: "Mutton Soup", price: 100, category: "Soups" },
+        { name: "Jamun", price: 40, category: "Desserts" },
+        { name: "Ice Cream", price: 80, category: "Desserts" }
+    ];
+
+    var tables = [
+        { name: "Table-1", items: {} },
+        { name: "Table-2", items: {} },
+        { name: "Table-3", items: {} }
+    ];
+
+    var currentTable = "";
+
+    function saveData() {
+        sessionStorage.setItem("tablesData", JSON.stringify(tables));
+    }
+
+    function loadData() {
+        var data = sessionStorage.getItem("tablesData");
+        if (data) tables = JSON.parse(data);
+    }
+
+    function showMenu() {
+        var search = menuSearch.value.toLowerCase();
+        menuList.innerHTML = "";
+        var grouped = {};
+
+        menu.forEach(item => {
+            if (
+                item.name.toLowerCase().includes(search) ||
+                item.category.toLowerCase().includes(search)
+            ) {
+                grouped[item.category] = grouped[item.category] || [];
+                grouped[item.category].push(item);
+            }
+        });
+
+        for (var category in grouped) {
+            var title = document.createElement("div");
+            title.className = "category-title";
+            title.innerText = category;
+            menuList.appendChild(title);
+
+            grouped[category].forEach(item => {
+                var div = document.createElement("div");
+                div.className = "menu-item";
+                div.draggable = true;
+                div.innerHTML = item.name + " - Rs." + item.price;
+                div.ondragstart = e =>
+                    e.dataTransfer.setData("item", div.innerHTML);
+                menuList.appendChild(div);
+            });
+        }
+    }
+
+    function showTables() {
+        var search = tableSearch.value.toLowerCase();
+        tableList.innerHTML = "";
+
+        tables.forEach(table => {
+            if (table.name.toLowerCase().includes(search)) {
+                let qty = 0, amount = 0;
+                for (let item in table.items) {
+                    qty += table.items[item].qty;
+                    amount += table.items[item].qty * table.items[item].price;
+                }
+
+                var div = document.createElement("div");
+                div.className = "table";
+                div.innerHTML = `
+                    <b>${table.name}</b><br>
+                    <small>Items: ${qty}</small><br>
+                    <small>Total: Rs.${amount}</small>
+                `;
+
+                div.ondragover = e => e.preventDefault();
+                div.ondrop = e => addItem(table.name, e.dataTransfer.getData("item"));
+                div.onclick = () => openModal(table.name);
+
+                tableList.appendChild(div);
+            }
+        });
+    }
+
+    function addItem(tableName, data) {
+        var itemName = data.split(" - Rs.")[0];
+        var price = parseInt(data.split("Rs.")[1]);
+
+        tables.forEach(table => {
+            if (table.name === tableName) {
+                table.items[itemName]
+                    ? table.items[itemName].qty++
+                    : table.items[itemName] = { price, qty: 1 };
+            }
+        });
+
+        saveData();
+        showTables();
+    }
+
+    function openModal(tableName) {
+        currentTable = tableName;
+        modal.style.display = "flex";
+        modalTitle.innerText = tableName + " Orders";
+        renderBill();
+    }
+
+    function renderBill() {
+        orders.innerHTML = "";
+        var sum = 0;
+
+        tables.forEach(table => {
+            if (table.name === currentTable) {
+                for (var item in table.items) {
+                    orders.innerHTML += `
+                        <div class="order">
+                            <span>${item}</span>
+                            <div>
+                                <button onclick="changeQty('${item}',-1)">-</button>
+                                ${table.items[item].qty}
+                                <button onclick="changeQty('${item}',1)">+</button>
+                            </div>
+                            <span>Rs.${table.items[item].price * table.items[item].qty}</span>
+                        </div>
+                    `;
+                    sum += table.items[item].price * table.items[item].qty;
+                }
+            }
+        });
+
+        total.innerText = "Total : Rs." + sum;
+    }
+
+    function changeQty(item, change) {
+        tables.forEach(table => {
+            if (table.name === currentTable) {
+                table.items[item].qty += change;
+                if (table.items[item].qty <= 0) delete table.items[item];
+            }
+        });
+
+        saveData();
+        renderBill();
+        showTables();
+    }
+
+    function closeModal() {
+        modal.style.display = "none";
+    }
+
+    function proceedBill() {
+        alert("Bill Generated ✅");
+        tables.forEach(t => {
+            if (t.name === currentTable) t.items = {};
+        });
+        saveData();
+        closeModal();
+        showTables();
+    }
+
+    menuSearch.onkeyup = showMenu;
+    tableSearch.onkeyup = showTables;
+
+    loadData();
+    showMenu();
+    showTables();
+</script>
+
+</body>
+</html>
